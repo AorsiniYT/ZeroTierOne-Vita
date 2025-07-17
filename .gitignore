@@ -1,4 +1,4 @@
 *build*
 ping-psvita
-samples
-doc
+/samples
+/doc

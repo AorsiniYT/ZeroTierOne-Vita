@@ -7,7 +7,8 @@
 #include <psp2/ctrl.h>
 #include <cstring>
 #include <cstdio>
-#include "debugScreen.h"
+#include "common/debugScreen.h"
+#include "debug.h"
 #define printf psvDebugScreenPrintf
 #define BOOST_ASIO_DISABLE_THREADS
 #include <boost/asio.hpp>
@@ -39,11 +40,11 @@ uint16_t in_cksum(uint16_t *ptr, int nbytes) {
 void run_ping_test(const char* ip_addr) {
     if (!ip_addr || strlen(ip_addr) == 0) {
         printf("[Ping Test] No se recibió IP destino. Abortando.\n");
-        sceClibPrintf("[Ping Test] No se recibió IP destino. Abortando.\n");
+        vita_debug_log("[Ping Test] No se recibió IP destino. Abortando.\n");
         return;
     }
     printf("\n[Ping Test] Ping a %s (pulsa círculo para salir)\n", ip_addr);
-    sceClibPrintf("[LOG] Iniciando ping a %s\n", ip_addr);
+    vita_debug_log("[LOG] Iniciando ping a %s\n", ip_addr);
 
     SceCtrlData ctrl;
     bool salir = false;
@@ -96,7 +97,7 @@ void run_ping_test(const char* ip_addr) {
             auto start = std::chrono::steady_clock::now();
             socket.send_to(boost::asio::buffer(data), destination);
             printf("[Boost.Asio] Paquete ICMP enviado (%zu bytes)\n", data.size());
-            sceClibPrintf("[Boost.Asio] Paquete ICMP enviado (%zu bytes)\n", data.size());
+            vita_debug_log("[Boost.Asio] Paquete ICMP enviado (%zu bytes)\n", data.size());
 
         // Esperar respuesta con timeout manual y chequeo de botón
         std::array<uint8_t, 256> reply_buf;
@@ -128,14 +129,14 @@ void run_ping_test(const char* ip_addr) {
         }
         if (received) {
             printf("[Boost.Asio] Respuesta recibida (%zu bytes) en %.2f ms\n", len, ms);
-            sceClibPrintf("[Boost.Asio] Respuesta recibida (%zu bytes) en %.2f ms\n", len, ms);
+            vita_debug_log("[Boost.Asio] Respuesta recibida (%zu bytes) en %.2f ms\n", len, ms);
         } else if (!salir) {
             printf("[Boost.Asio] No se recibió respuesta (timeout)\n");
-            sceClibPrintf("[Boost.Asio] No se recibió respuesta (timeout)\n");
+            vita_debug_log("[Boost.Asio] No se recibió respuesta (timeout)\n");
         }
         } catch (const std::exception& e) {
             printf("[Boost.Asio] Error: %s\n", e.what());
-            sceClibPrintf("[Boost.Asio] Error: %s\n", e.what());
+            vita_debug_log("[Boost.Asio] Error: %s\n", e.what());
         }
         // Esperar un poco antes del siguiente ping
         sceKernelDelayThread(500*1000); // 500 ms

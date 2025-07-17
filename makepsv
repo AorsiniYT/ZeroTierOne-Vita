@@ -257,15 +257,6 @@ build_project() {
     # Configurar con CMake
     echo -e "[+] Configurando para PS Vita (Build Type: $1)..."
     cmake -B "$BUILD_DIR" \
-        -DPLATFORM_PSV=ON \
-        -DUSE_SYSTEM_CURL=ON \
-        -DUSE_SYSTEM_SDL2=ON \
-        -DUSE_LIBROMFS=OFF \
-        -DMPV_NO_FB=ON \
-        -DSIMPLE_HIGHLIGHT=ON \
-        -DUSE_GXM=$USE_GXM \
-        -DUSE_VITA_SHARK=OFF \
-        -DCMAKE_BUILD_TYPE=${1:-Release} \
         -DCMAKE_TOOLCHAIN_FILE="${VITASDK}/share/vita.toolchain.cmake" \
         -DCMAKE_MAKE_PROGRAM="make" \
         -DCMAKE_C_COMPILER="${CC}" \

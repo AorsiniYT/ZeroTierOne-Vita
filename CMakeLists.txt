@@ -23,33 +23,38 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 set(VITA_MKSFOEX_FLAGS "${VITA_MKSFOEX_FLAGS} -d PARENTAL_LEVEL=1")
 
-include_directories(
-    third_party/ZeroTierOne/include
-    third_party/samples/common
-    src
-)
-add_subdirectory(third_party)
-
 link_directories(
     ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-add_executable(${PROJECT_NAME}
-    src/main.cpp
-    src/ping.cpp
-    src/ime.cpp
-    src/zerotierone.cpp
-    src/zt_storage.cpp
-    src/common/gxm_helper.cpp
-    third_party/samples/common/debugScreen.c
+
+# Buscar automáticamente todos los archivos .c y .cpp en src/
+
+
+# Incluir librerías de terceros
+add_subdirectory(third_party)
+
+
+# Buscar todos los archivos .c y .cpp en src/, pero excluir debugScreenFont.c
+file(GLOB_RECURSE SRC_FILES
+    src/*.c
+    src/*.cpp
 )
+list(FILTER SRC_FILES EXCLUDE REGEX ".*debugScreenFont\\.c$")
+
+# Añadir explícitamente ripemd160.c si no es capturado por GLOB
+list(APPEND SRC_FILES src/zerotierlite/ripemd160.c)
+
+add_executable(${PROJECT_NAME} ${SRC_FILES})
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
     LINKER_LANGUAGE CXX
 )
 
 # Forzar macros de compatibilidad para Vita
-add_definitions(-D__UNIX_LIKE__ -D__vita__ -D__PSV__)
+add_definitions(-D__vita__ -D__PSV__)
+
+# Enlazar librerías de Vita y de terceros
 target_link_libraries(${PROJECT_NAME}
     SceLibKernel_stub
     SceDisplay_stub
@@ -59,7 +64,8 @@ target_link_libraries(${PROJECT_NAME}
     SceAppUtil_stub
     SceGxm_stub
     SceSysmodule_stub
-    ${ZEROTIERONE_CORE_LIB}
+    ed25519-donna
+    tweetnacl
 )
 
 vita_create_self(${PROJECT_NAME}.self ${PROJECT_NAME})

@@ -91,6 +91,11 @@
         "variant": "cpp",
         "cerrno": "cpp",
         "gxm.h": "c",
-        "apputil.h": "c"
+        "apputil.h": "c",
+        "unordered_set": "cpp",
+        "netfwd": "cpp",
+        "future": "cpp",
+        "shared_mutex": "cpp",
+        "rand.h": "c"
     }
 }

@@ -11,8 +11,10 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
+#include "debug.h"
 #include "common/debugScreen.h"
 #include "common/gxm_helper.h"
+// #include "zt_storage.h" // Deshabilitado temporalmente
 
 extern "C" int psvDebugScreenInit();
 
@@ -23,7 +25,7 @@ extern "C" int psvDebugScreenPuts(const char *text);
 #define printf psvDebugScreenPrintf
 #include "ping.h"
 #include "ime.h"
-#include "zerotierone.h"
+#include "zerotieronevita.h"
 
 #ifndef SceNetTimeval_defined
 #define SceNetTimeval_defined
@@ -51,33 +53,41 @@ void draw_menu(int selected) {
 }
 
 int main(int argc, char *argv[]) {
+    // Eliminar archivo de identidad para pruebas (forzar generación nueva)
+    vita_debug_log("[MAIN] Eliminando archivo de identidad para pruebas...");
+    remove("ux0:data/zerotierone/identity_secret.conf");
+    vita_debug_log("[MAIN] main() iniciado");
     psvDebugScreenInit();
     gxm_init();
+    vita_debug_log("[MAIN] Pantalla y GXM inicializados");
     SceAppUtilInitParam appUtilInitParam;
     SceAppUtilBootParam appUtilBootParam;
     memset(&appUtilInitParam, 0, sizeof(SceAppUtilInitParam));
     memset(&appUtilBootParam, 0, sizeof(SceAppUtilBootParam));
     sceAppUtilInit(&appUtilInitParam, &appUtilBootParam);
+    vita_debug_log("[MAIN] AppUtil inicializado");
     SceCommonDialogConfigParam commonDialogConfigParam;
     memset(&commonDialogConfigParam, 0, sizeof(SceCommonDialogConfigParam));
     sceCommonDialogSetConfigParam(&commonDialogConfigParam);
-    sceClibPrintf("[DEBUG] Iniciando ZeroTierOne Vita Test\n");
-
+    vita_debug_log("[DEBUG] Iniciando ZeroTierOne Vita Test");
+    // --- INICIALIZACIÓN DE RED ---
     int ret;
     void *net_mem = NULL;
     const int NET_PARAM_MEM_SIZE = 256 * 1024;
+    vita_debug_log("[NET] Cargando modulo de red (SCE_SYSMODULE_NET)...");
 
-    sceClibPrintf("[NET] Cargando modulo de red (SCE_SYSMODULE_NET)...\n");
     ret = sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
+    vita_debug_log("[NET] sceSysmoduleLoadModule ret=%d", ret);
     if (ret < 0) {
-        sceClibPrintf("[NET] ERROR: sceSysmoduleLoadModule fallo: 0x%08X\n", ret);
+        vita_debug_log("[NET] ERROR: sceSysmoduleLoadModule fallo: 0x%08X", ret);
         return -1;
     }
 
-    sceClibPrintf("[NET] Inicializando red (sceNetInit)...\n");
+    vita_debug_log("[NET] Inicializando red (sceNetInit)...");
     net_mem = malloc(NET_PARAM_MEM_SIZE);
+    vita_debug_log("[NET] malloc net_mem=%p", net_mem);
     if (!net_mem) {
-        sceClibPrintf("[NET] ERROR: malloc para net_mem fallo\n");
+        vita_debug_log("[NET] ERROR: malloc para net_mem fallo");
         sceSysmoduleUnloadModule(SCE_SYSMODULE_NET);
         return -2;
     }
@@ -86,17 +96,19 @@ int main(int argc, char *argv[]) {
     netInitParam.size = NET_PARAM_MEM_SIZE;
     netInitParam.flags = 0;
     ret = sceNetInit(&netInitParam);
+    vita_debug_log("[NET] sceNetInit ret=%d", ret);
     if (ret < 0) {
-        sceClibPrintf("[NET] ERROR: sceNetInit fallo: 0x%08X\n", ret);
+        vita_debug_log("[NET] ERROR: sceNetInit fallo: 0x%08X", ret);
         free(net_mem);
         sceSysmoduleUnloadModule(SCE_SYSMODULE_NET);
         return -3;
     }
 
-    sceClibPrintf("[NET] Inicializando control de red (sceNetCtlInit)...\n");
+    vita_debug_log("[NET] Inicializando control de red (sceNetCtlInit)...");
     ret = sceNetCtlInit();
+    vita_debug_log("[NET] sceNetCtlInit ret=%d", ret);
     if (ret < 0) {
-        sceClibPrintf("[NET] ERROR: sceNetCtlInit fallo: 0x%08X\n", ret);
+        vita_debug_log("[NET] ERROR: sceNetCtlInit fallo: 0x%08X", ret);
         sceNetTerm();
         free(net_mem);
         sceSysmoduleUnloadModule(SCE_SYSMODULE_NET);
@@ -106,63 +118,45 @@ int main(int argc, char *argv[]) {
     // Mostrar estado de la red
     int net_state = 0;
     ret = sceNetCtlInetGetState(&net_state);
+    vita_debug_log("[NET] sceNetCtlInetGetState ret=%d, state=%d", ret, net_state);
     if (ret == 0) {
         switch (net_state) {
             case SCE_NETCTL_STATE_DISCONNECTED:
-                sceClibPrintf("[NET] Estado: DESCONECTADO\n");
+                vita_debug_log("[NET] Estado: DESCONECTADO");
                 break;
             case SCE_NETCTL_STATE_CONNECTING:
-                sceClibPrintf("[NET] Estado: CONECTANDO\n");
+                vita_debug_log("[NET] Estado: CONECTANDO");
                 break;
             case SCE_NETCTL_STATE_FINALIZING:
-                sceClibPrintf("[NET] Estado: FINALIZANDO\n");
+                vita_debug_log("[NET] Estado: FINALIZANDO");
                 break;
             case SCE_NETCTL_STATE_CONNECTED:
-                sceClibPrintf("[NET] Estado: CONECTADO\n");
+                vita_debug_log("[NET] Estado: CONECTADO");
                 break;
             default:
-                sceClibPrintf("[NET] Estado: DESCONOCIDO (%d)\n", net_state);
+                vita_debug_log("[NET] Estado: DESCONOCIDO (%d)", net_state);
         }
     } else {
-        sceClibPrintf("[NET] No se pudo obtener el estado de red. ret=0x%08X\n", ret);
+        vita_debug_log("[NET] No se pudo obtener el estado de red. ret=0x%08X", ret);
     }
+
+    // Inicializar ZeroTierOne después de la red
+    vita_debug_log("[ZT] Inicializando ZeroTierOne...");
+    zerotierone_init();
+    vita_debug_log("[ZT] ZeroTierOne inicializado");
 
     // Imprimir configuración de red actual usando NetCtl
     SceNetCtlInfo info;
     ret = sceNetCtlInetGetInfo(SCE_NETCTL_INFO_GET_IP_ADDRESS, &info);
-    if (ret == 0) {
-        sceClibPrintf("[NET] IP: %s\n", info.ip_address);
-    } else {
-        sceClibPrintf("[NET] No se pudo obtener la IP. ret=0x%08X\n", ret);
-    }
-
+    vita_debug_log("[NET] IP ret=%d, IP=%s", ret, (ret==0)?info.ip_address:"<error>");
     ret = sceNetCtlInetGetInfo(SCE_NETCTL_INFO_GET_SSID, &info);
-    if (ret == 0) {
-        sceClibPrintf("[NET] SSID: %s\n", info.ssid);
-    } else {
-        sceClibPrintf("[NET] No se pudo obtener el SSID. ret=0x%08X\n", ret);
-    }
-
+    vita_debug_log("[NET] SSID ret=%d, SSID=%s", ret, (ret==0)?info.ssid:"<error>");
     ret = sceNetCtlInetGetInfo(SCE_NETCTL_INFO_GET_DEFAULT_ROUTE, &info);
-    if (ret == 0) {
-        sceClibPrintf("[NET] Gateway: %s\n", info.default_route);
-    } else {
-        sceClibPrintf("[NET] No se pudo obtener el Gateway. ret=0x%08X\n", ret);
-    }
-
+    vita_debug_log("[NET] Gateway ret=%d, GW=%s", ret, (ret==0)?info.default_route:"<error>");
     ret = sceNetCtlInetGetInfo(SCE_NETCTL_INFO_GET_PRIMARY_DNS, &info);
-    if (ret == 0) {
-        sceClibPrintf("[NET] DNS Primario: %s\n", info.primary_dns);
-    } else {
-        sceClibPrintf("[NET] No se pudo obtener el DNS primario. ret=0x%08X\n", ret);
-    }
-
+    vita_debug_log("[NET] DNS Primario ret=%d, DNS=%s", ret, (ret==0)?info.primary_dns:"<error>");
     ret = sceNetCtlInetGetInfo(SCE_NETCTL_INFO_GET_SECONDARY_DNS, &info);
-    if (ret == 0) {
-        sceClibPrintf("[NET] DNS Secundario: %s\n", info.secondary_dns);
-    } else {
-        sceClibPrintf("[NET] No se pudo obtener el DNS secundario. ret=0x%08X\n", ret);
-    }
+    vita_debug_log("[NET] DNS Secundario ret=%d, DNS=%s", ret, (ret==0)?info.secondary_dns:"<error>");
 
     SceCtrlData ctrl;
     int selected = 0;
@@ -173,13 +167,16 @@ int main(int argc, char *argv[]) {
         sceCtrlPeekBufferPositive(0, &ctrl, 1);
         if (ctrl.buttons & SCE_CTRL_UP) {
             selected = (selected - 1 + MENU_OPTIONS) % MENU_OPTIONS;
+            vita_debug_log("[MENU] UP, seleccionado=%d", selected);
             sceKernelDelayThread(200*1000);
         }
         if (ctrl.buttons & SCE_CTRL_DOWN) {
             selected = (selected + 1) % MENU_OPTIONS;
+            vita_debug_log("[MENU] DOWN, seleccionado=%d", selected);
             sceKernelDelayThread(200*1000);
         }
         if (ctrl.buttons & SCE_CTRL_CROSS) {
+            vita_debug_log("[MENU] CROSS/X presionado, opción=%d", selected);
             switch (selected) {
                 case 0: {
                     // Esperar a que el usuario suelte todos los botones antes de mostrar el submenú
@@ -188,29 +185,22 @@ int main(int argc, char *argv[]) {
                         sceKernelDelayThread(50*1000);
                     } while (ctrl.buttons);
 
-                    // Usar teclado IME para pedir el Network ID
-                    char network_id[32] = {0};
-                    int ok = ime_get_text(network_id, 31, "Network ID", "");
-                    gxm_term(); // Finaliza GXM tras el IME para restaurar debugScreen
-                    psvDebugScreenInit(); // Reinicia debugScreen para restaurar la consola
-                    psvDebugScreenClear(0);
-                    printf("[IME] Texto ingresado: %s\n", network_id);
-                    sceClibPrintf("[IME] Texto ingresado: %s\n", network_id);
-                    // ...solo salida por consola para pruebas...
-                    if (ok && strlen(network_id) > 0) {
-                        printf("\nUniéndose a la red ZeroTier: %s...\n", network_id);
-                        zerotierone_join(network_id);
-                        printf("\nOperación finalizada. Pulsa cualquier botón para volver al menú.\n");
-                        // Esperar a que se pulse y suelte cualquier botón
-                        do {
-                            sceCtrlPeekBufferPositive(0, &ctrl, 1);
-                            sceKernelDelayThread(100*1000);
-                        } while (!(ctrl.buttons));
-                        do {
-                            sceCtrlPeekBufferPositive(0, &ctrl, 1);
-                            sceKernelDelayThread(50*1000);
-                        } while (ctrl.buttons);
-                    }
+                    // Network ID fijo para pruebas
+                    const char* network_id = "fada62b015a9a8b1";
+                    printf("\nUniéndose a la red ZeroTier: %s...\n", network_id);
+                    vita_debug_log("[MAIN] Llamando a zerotierone_join(%s)", network_id);
+                    zerotierone_join(network_id);
+                    vita_debug_log("[MAIN] zerotierone_join finalizado");
+                    printf("\nOperación finalizada. Pulsa cualquier botón para volver al menú.\n");
+                    // Esperar a que se pulse y suelte cualquier botón
+                    do {
+                        sceCtrlPeekBufferPositive(0, &ctrl, 1);
+                        sceKernelDelayThread(100*1000);
+                    } while (!(ctrl.buttons));
+                    do {
+                        sceCtrlPeekBufferPositive(0, &ctrl, 1);
+                        sceKernelDelayThread(50*1000);
+                    } while (ctrl.buttons);
                     break;
                 }
                 case 1: {
@@ -242,6 +232,7 @@ int main(int argc, char *argv[]) {
                         sceCtrlPeekBufferPositive(0, &ctrl, 1);
                         if (ctrl.buttons & SCE_CTRL_UP) {
                             ip_selected = (ip_selected - 1 + ip_count) % ip_count;
+                            vita_debug_log("[PING] UP, seleccionado=%d", ip_selected);
                             // Esperar a que se suelte el botón
                             do {
                                 sceCtrlPeekBufferPositive(0, &ctrl, 1);
@@ -250,12 +241,14 @@ int main(int argc, char *argv[]) {
                         }
                         if (ctrl.buttons & SCE_CTRL_DOWN) {
                             ip_selected = (ip_selected + 1) % ip_count;
+                            vita_debug_log("[PING] DOWN, seleccionado=%d", ip_selected);
                             do {
                                 sceCtrlPeekBufferPositive(0, &ctrl, 1);
                                 sceKernelDelayThread(50*1000);
                             } while (ctrl.buttons & SCE_CTRL_DOWN);
                         }
                         if (ctrl.buttons & SCE_CTRL_CIRCLE) {
+                            vita_debug_log("[PING] Cancelar seleccionado");
                             // Esperar a que se suelte el botón
                             do {
                                 sceCtrlPeekBufferPositive(0, &ctrl, 1);
@@ -265,6 +258,7 @@ int main(int argc, char *argv[]) {
                             break;
                         }
                         if (ctrl.buttons & SCE_CTRL_CROSS) {
+                            vita_debug_log("[PING] CROSS/X presionado, ip=%s", ip_options[ip_selected]);
                             // Esperar a que se suelte el botón
                             do {
                                 sceCtrlPeekBufferPositive(0, &ctrl, 1);
@@ -272,7 +266,9 @@ int main(int argc, char *argv[]) {
                             } while (ctrl.buttons & SCE_CTRL_CROSS);
                             if (strcmp(ip_options[ip_selected], "Cancelar") != 0) {
                                 printf("\nIniciando ping a %s...\n", ip_options[ip_selected]);
+                                vita_debug_log("[PING] Iniciando ping a %s", ip_options[ip_selected]);
                                 run_ping_test(ip_options[ip_selected]);
+                                vita_debug_log("[PING] Test finalizado para %s", ip_options[ip_selected]);
                                 printf("\nTest finalizado. Pulsa cualquier botón para volver al menú.\n");
                                 // Esperar a que se pulse y suelte cualquier botón
                                 do {
@@ -292,6 +288,7 @@ int main(int argc, char *argv[]) {
                     break;
                 }
                 case 2:
+                    vita_debug_log("[MENU] Exit seleccionado, saliendo...");
                     running = 0;
                     break;
             }
@@ -299,12 +296,19 @@ int main(int argc, char *argv[]) {
         sceKernelDelayThread(50*1000);
     }
     if (net_mem) {
+        vita_debug_log("[NET] Liberando memoria de red...");
         free(net_mem);
     }
+    vita_debug_log("[NET] Terminando NetCtl...");
     sceNetCtlTerm();
+    vita_debug_log("[NET] Terminando Net...");
     sceNetTerm();
+    vita_debug_log("[NET] Unloading SCE_SYSMODULE_NET...");
     sceSysmoduleUnloadModule(SCE_SYSMODULE_NET);
+    vita_debug_log("[MAIN] Terminando GXM...");
     gxm_term();
+    vita_debug_log("[MAIN] Saliendo del proceso...");
     sceKernelExitProcess(0);
+    vita_debug_log("[MAIN] main() finalizado");
     return 0;
 }
