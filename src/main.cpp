@@ -1,3 +1,4 @@
+#include "zerotierlite/zerotierlite_controller.h"
 #include <psp2/apputil.h>
 #include <psp2/common_dialog.h>
 #include <psp2/net/netctl.h>
@@ -27,6 +28,39 @@ extern "C" int psvDebugScreenPuts(const char *text);
 #include "ime.h"
 #include "zerotieronevita.h"
 
+
+#include "planet_reader.h"
+#include "planet_bin.h"
+
+#include <psp2/io/fcntl.h>
+#include <psp2/io/stat.h>
+#include <psp2/io/dirent.h>
+#include <string>
+#include <fstream>
+#include "zerotierlite/identity.h"
+
+// Declaración global del identificador local
+extern ztl_identity_t g_identity;
+
+void copiar_archivos_configuracion()
+{
+    const char* dir_data = "ux0:data/zerotierone";
+    // Crear carpeta si no existe
+    SceIoStat stat;
+    int res = sceIoGetstat(dir_data, &stat);
+    if (res < 0) {
+        sceIoMkdir(dir_data, 0777);
+    }
+
+    // planet
+    std::string planet_destino = std::string(dir_data) + "/planet";
+    SceIoStat stat_planet;
+    if (sceIoGetstat(planet_destino.c_str(), &stat_planet) < 0) {
+        guardar_planet_binario(planet_destino);
+        vita_debug_log("[CONFIG] planet generado desde binario embebido");
+    }
+}
+
 #ifndef SceNetTimeval_defined
 #define SceNetTimeval_defined
 typedef struct SceNetTimeval {
@@ -36,8 +70,8 @@ typedef struct SceNetTimeval {
 #endif
 
 #define printf psvDebugScreenPrintf
-#define MENU_OPTIONS 3
-const char *menu[MENU_OPTIONS] = {"Join", "Ping Test", "Exit"};
+#define MENU_OPTIONS 4
+const char *menu[MENU_OPTIONS] = {"Descubrir controladores", "Unirse a red", "Ping Test", "Salir"};
 
 // La implementación de in_cksum está en ping.cpp
 
@@ -53,6 +87,9 @@ void draw_menu(int selected) {
 }
 
 int main(int argc, char *argv[]) {
+    // Copiar archivos planet y zerotier-one.port a ux0:data/zerotiervita si no existen
+    copiar_archivos_configuracion();
+    vita_debug_log("[MAIN] Archivos de configuración copiados/verificados");
     // Eliminar archivo de identidad para pruebas (forzar generación nueva)
     vita_debug_log("[MAIN] Eliminando archivo de identidad para pruebas...");
     remove("ux0:data/zerotierone/identity_secret.conf");
@@ -179,20 +216,41 @@ int main(int argc, char *argv[]) {
             vita_debug_log("[MENU] CROSS/X presionado, opción=%d", selected);
             switch (selected) {
                 case 0: {
-                    // Esperar a que el usuario suelte todos los botones antes de mostrar el submenú
+                    // Descubrir controladores usando planet
                     do {
                         sceCtrlPeekBufferPositive(0, &ctrl, 1);
                         sceKernelDelayThread(50*1000);
                     } while (ctrl.buttons);
 
-                    // Network ID fijo para pruebas
-                    const char* network_id = "fada62b015a9a8b1";
-                    printf("\nUniéndose a la red ZeroTier: %s...\n", network_id);
-                    vita_debug_log("[MAIN] Llamando a zerotierone_join(%s)", network_id);
-                    zerotierone_join(network_id);
-                    vita_debug_log("[MAIN] zerotierone_join finalizado");
+                    const char* planet_path = "ux0:/data/zerotierone/planet";
+                    const char* port_path = "ux0:/data/zerotierone/zerotier-one.port";
+                    vita_debug_log("[MAIN] Intentando leer planet desde: %s y puerto desde: %s", planet_path, port_path);
+                    PlanetData planet;
+                    try {
+                        planet = leer_planet(planet_path, port_path);
+                        vita_debug_log("[MAIN] planet leído correctamente. Roots encontrados: %u", (unsigned int)planet.roots.size());
+                        printf("\n[PLANET] Endpoints detectados:\n");
+                        for (const auto& root : planet.roots) {
+                            vita_debug_log("[PLANET] Root: %s, endpoints: %u", root.identity.c_str(), (unsigned int)root.endpoints.size());
+                            printf("Root: %s\n", root.identity.c_str());
+                            for (const auto& ep : root.endpoints) {
+                                vita_debug_log("[PLANET]   Endpoint: %s:%d", ep.ip.c_str(), ep.port);
+                                printf("  Endpoint: %s:%d\n", ep.ip.c_str(), ep.port);
+                            }
+                        }
+                        bool ok = conectar_a_controladores(planet, &g_identity);
+                        if (ok) {
+                            printf("\n[ZT] Al menos un controlador respondió correctamente.\n");
+                            vita_debug_log("[ZT] Controlador disponible");
+                        } else {
+                            printf("\n[ZT] Ningún controlador respondió.\n");
+                            vita_debug_log("[ZT] Ningún controlador respondió");
+                        }
+                    } catch (const std::exception& e) {
+                        vita_debug_log("[MAIN] Error al leer planet: %s", e.what());
+                        printf("\n[PLANET] Error al leer planet: %s\n", e.what());
+                    }
                     printf("\nOperación finalizada. Pulsa cualquier botón para volver al menú.\n");
-                    // Esperar a que se pulse y suelte cualquier botón
                     do {
                         sceCtrlPeekBufferPositive(0, &ctrl, 1);
                         sceKernelDelayThread(100*1000);
@@ -204,6 +262,28 @@ int main(int argc, char *argv[]) {
                     break;
                 }
                 case 1: {
+                    // Unirse a la red solo si se ha detectado un controlador
+                    do {
+                        sceCtrlPeekBufferPositive(0, &ctrl, 1);
+                        sceKernelDelayThread(50*1000);
+                    } while (ctrl.buttons);
+                    const char* network_id = "fada62b015a9a8b1";
+                    printf("\nUniéndose a la red ZeroTier: %s...\n", network_id);
+                    vita_debug_log("[MAIN] Llamando a zerotierone_join(%s)", network_id);
+                    zerotierone_join(network_id);
+                    vita_debug_log("[MAIN] zerotierone_join finalizado");
+                    printf("\nOperación finalizada. Pulsa cualquier botón para volver al menú.\n");
+                    do {
+                        sceCtrlPeekBufferPositive(0, &ctrl, 1);
+                        sceKernelDelayThread(100*1000);
+                    } while (!(ctrl.buttons));
+                    do {
+                        sceCtrlPeekBufferPositive(0, &ctrl, 1);
+                        sceKernelDelayThread(50*1000);
+                    } while (ctrl.buttons);
+                    break;
+                }
+                case 2: {
                     // Esperar a que el usuario suelte todos los botones antes de mostrar el submenú
                     do {
                         sceCtrlPeekBufferPositive(0, &ctrl, 1);
@@ -287,7 +367,7 @@ int main(int argc, char *argv[]) {
                     }
                     break;
                 }
-                case 2:
+                case 3:
                     vita_debug_log("[MENU] Exit seleccionado, saliendo...");
                     running = 0;
                     break;

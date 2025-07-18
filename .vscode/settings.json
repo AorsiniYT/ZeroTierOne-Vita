@@ -96,6 +96,7 @@
         "netfwd": "cpp",
         "future": "cpp",
         "shared_mutex": "cpp",
-        "rand.h": "c"
+        "rand.h": "c",
+        "coroutine": "cpp"
     }
 }

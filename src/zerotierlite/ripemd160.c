@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
+#include "ripemd160.h"
 
 #define ROL(x, n) (((x) << (n)) | ((x) >> (32 - (n))))
 

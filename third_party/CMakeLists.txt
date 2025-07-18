@@ -12,3 +12,4 @@ file(GLOB TWEETNACL_SRC
 )
 add_library(tweetnacl STATIC ${TWEETNACL_SRC})
 target_include_directories(tweetnacl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/tweetnacl)
+

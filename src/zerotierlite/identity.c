@@ -4,11 +4,10 @@
 #include <string.h>
 #include <stdint.h>
 #include "identity.h"
+
 #include "../../third_party/ed25519-donna/ed25519.h"
 #include "../../third_party/ed25519-donna/ed25519-hash.h"
 
-// Prototipo de RIPEMD-160 portable (puedes reemplazarlo por tu propia implementación)
-void ripemd160(const uint8_t* msg, size_t msg_len, uint8_t out[20]);
 
 
 int ztl_identity_generate(ztl_identity_t* id) {
@@ -21,6 +20,9 @@ int ztl_identity_generate(ztl_identity_t* id) {
     char pkbuf[65] = {0};
     for (int i = 0; i < 32; ++i) sprintf(pkbuf + i*2, "%02x", id->public_key[i]);
     vita_debug_log("[IDENTITY] public_key: %s", pkbuf);
+    char pkraw[128] = {0};
+    snprintf(pkraw, sizeof(pkraw), "[IDENTITY] public_key raw: %02X %02X %02X %02X ... %02X", id->public_key[0], id->public_key[1], id->public_key[2], id->public_key[3], id->public_key[31]);
+    vita_debug_log("%s", pkraw);
     // Calcular SHA512 del public key
     uint8_t hash[64];
     ed25519_hash(hash, id->public_key, 32);
@@ -32,6 +34,9 @@ int ztl_identity_generate(ztl_identity_t* id) {
     char addrbuf[17] = {0};
     for (int i = 0; i < 8; ++i) sprintf(addrbuf + i*2, "%02x", id->address[i]);
     vita_debug_log("[IDENTITY] address (RIPEMD-160, 8 bytes): %s", addrbuf);
+    char addrraw[64] = {0};
+    snprintf(addrraw, sizeof(addrraw), "[IDENTITY] address raw: %02X %02X %02X %02X %02X", id->address[0], id->address[1], id->address[2], id->address[3], id->address[4]);
+    vita_debug_log("%s", addrraw);
     return 0;
 }
 

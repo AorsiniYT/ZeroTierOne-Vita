@@ -68,9 +68,20 @@ target_link_libraries(${PROJECT_NAME}
     tweetnacl
 )
 
+# Incluir nlohmann_json (header-only)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/)
+
+
+# Crear el binario SELF primero
 vita_create_self(${PROJECT_NAME}.self ${PROJECT_NAME})
+
+
+# Incluir archivos de recursos en la VPK para que se instalen en ux0:/resources/
+set(PSV_ASSETS_FILES ${CMAKE_SOURCE_DIR}/resources resources)
+
 vita_create_vpk(${PROJECT_NAME}.vpk ${VITA_TITLEID} ${PROJECT_NAME}.self
   VERSION ${VITA_VERSION}
   NAME ${VITA_APP_NAME}
+  FILE ${PSV_ASSETS_FILES}
 )
 

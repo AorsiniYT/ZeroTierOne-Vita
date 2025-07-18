@@ -17,7 +17,7 @@
 
 
 // Estado global simplificado del cliente
-static ztl_identity_t g_identity;
+   ztl_identity_t g_identity;
 static ztl_state_t g_state = ZTL_STATE_DISCONNECTED;
 static ztl_network_config_t g_network;
 static ztl_peer_t g_peer;

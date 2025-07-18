@@ -2,7 +2,7 @@
 #include <stddef.h>
 #include <stdint.h>
 // Prototipo de RIPEMD-160 portable
-void ripemd160(const uint8_t* msg, size_t msg_len, uint8_t out[20]);
+#include "ripemd160.h"
 // Módulo de identidad: generación y manejo de claves ZeroTier
 
 #ifdef __cplusplus
